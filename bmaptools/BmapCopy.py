@@ -619,7 +619,7 @@ class BmapCopy(object):
                         % (blocks_written + mapped_blocks_skipped, self._image_path, self._dest_path,
                            self.mapped_cnt, self._bmap_path))
 
-        if self._dest_is_regfile:
+        if self._dest_is_regfile and (self.image_size - skip) > 0:
             # Make sure the destination file has the same size as the image
             try:
                 os.ftruncate(self._f_dest.fileno(), self.image_size - skip)
