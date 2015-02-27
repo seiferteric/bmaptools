@@ -615,7 +615,6 @@ class BmapCopy(object):
 
         # This is just a sanity check - we should have written exactly
         # 'mapped_cnt' blocks.
-        print(blocks_written + mapped_blocks_skipped, self.mapped_cnt)
         if blocks_written + mapped_blocks_skipped != self.mapped_cnt:
             raise Error("wrote %u blocks from image '%s' to '%s', but should "
                         "have %u - bmap file '%s' does not belong to this "
