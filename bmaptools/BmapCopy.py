@@ -532,7 +532,7 @@ class BmapCopy(object):
 
         self._batch_queue.put(None)
 
-    def copy(self, sync=True, verify=True):
+    def copy(self, sync=True, verify=True, skip=0):
         """
         Copy the image to the destination file using bmap. The 'sync' argument
         defines whether the destination file has to be synchronized upon
@@ -546,7 +546,9 @@ class BmapCopy(object):
         thread.start_new_thread(self._get_data, (verify, ))
 
         blocks_written = 0
+        blocks_skipped = 0
         bytes_written = 0
+        bytes_skipped = 0
         fsync_last = 0
 
         self._progress_started = False
@@ -567,11 +569,19 @@ class BmapCopy(object):
                 raise exc_info[0], exc_info[1], exc_info[2]
 
             (start, end, buf) = batch[1:4]
-
             assert len(buf) <= (end - start + 1) * self.block_size
             assert len(buf) > (end - start) * self.block_size
 
-            self._f_dest.seek(start * self.block_size)
+            if ((end+1)*self.block_size) <= skip:
+                #Skip writing whole batch
+                continue
+            else:
+                if start*self.block_size <= skip:
+                    left_to_skip = skip - start*self.block_size
+                    buf = buf[left_to_skip:]
+                    bytes_skipped += left_to_skip + start*self.block_size
+                else:
+                    self._f_dest.seek(start * self.block_size - skip)
 
             # Synchronize the destination file if we reached the watermark
             if self._dest_fsync_watermark:
@@ -588,8 +598,7 @@ class BmapCopy(object):
             self._batch_queue.task_done()
             blocks_written += (end - start + 1)
             bytes_written += len(buf)
-
-            self._update_progress(blocks_written)
+            #self._update_progress(blocks_written)
 
         if not self.image_size:
             # The image size was unknown up until now, set it
@@ -597,7 +606,7 @@ class BmapCopy(object):
 
         # This is just a sanity check - we should have written exactly
         # 'mapped_cnt' blocks.
-        if blocks_written != self.mapped_cnt:
+        if blocks_written + (bytes_skipped / self.block_size) != self.mapped_cnt:
             raise Error("wrote %u blocks from image '%s' to '%s', but should "
                         "have %u - bmap file '%s' does not belong to this "
                         "image"
@@ -607,7 +616,7 @@ class BmapCopy(object):
         if self._dest_is_regfile:
             # Make sure the destination file has the same size as the image
             try:
-                os.ftruncate(self._f_dest.fileno(), self.image_size)
+                os.ftruncate(self._f_dest.fileno(), self.image_size - skip)
             except OSError as err:
                 raise Error("cannot truncate file '%s': %s"
                             % (self._dest_path, err))

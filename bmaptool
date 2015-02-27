@@ -485,7 +485,7 @@ def copy_command(args, log):
 
     try:
         try:
-            writer.copy(False, not args.no_verify)
+            writer.copy(False, not args.no_verify, args.skip or 0)
         except (BmapCopy.Error, TransRead.Error) as err:
             log.error(str(err))
             raise SystemExit(1)
@@ -647,6 +647,10 @@ def parse_arguments():
     # The --no-verify option
     text = "do not verify the data checksum while writing"
     parser_copy.add_argument("--no-verify", action="store_true", help=text)
+
+    # The --skip option
+    text = "Skip N bytes of the input file"
+    parser_copy.add_argument("--skip", type=int, help=text)
 
     return parser.parse_args()
 
