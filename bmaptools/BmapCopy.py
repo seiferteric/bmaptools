@@ -607,7 +607,7 @@ class BmapCopy(object):
             self._batch_queue.task_done()
             blocks_written += (end - start + 1 - int(bytes_left_to_skip / self.block_size))
             bytes_written += len(buf)
-            self._update_progress(blocks_written)
+            self._update_progress(blocks_written + mapped_blocks_skipped)
 
         if not self.image_size:
             # The image size was unknown up until now, set it
