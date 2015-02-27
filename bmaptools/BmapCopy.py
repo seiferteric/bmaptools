@@ -549,7 +549,6 @@ class BmapCopy(object):
         blocks_skipped = 0
         mapped_blocks_skipped = 0
         bytes_written = 0
-        bytes_skipped = 0
         fsync_last = 0
 
         self._progress_started = False
@@ -576,7 +575,6 @@ class BmapCopy(object):
             bytes_left_to_skip = 0
             if ((end+1)*self.block_size) <= skip:
                 #Skip writing whole batch
-                bytes_skipped = (end+1)*self.block_size
                 blocks_skipped = end
                 mapped_blocks_skipped += (end - start + 1)
                 continue
@@ -585,7 +583,6 @@ class BmapCopy(object):
                     #Skipping ends somewhere between start and end, possibly mid block.
                     bytes_left_to_skip = skip - start*self.block_size
                     buf = buf[bytes_left_to_skip:]
-                    bytes_skipped = start*self.block_size + bytes_left_to_skip
                     blocks_skipped = start + int(bytes_left_to_skip / self.block_size)
                     mapped_blocks_skipped += int(bytes_left_to_skip / self.block_size)
                 else:
