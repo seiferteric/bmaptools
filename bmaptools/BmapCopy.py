@@ -547,6 +547,7 @@ class BmapCopy(object):
 
         blocks_written = 0
         blocks_skipped = 0
+        mapped_blocks_skipped = 0
         bytes_written = 0
         bytes_skipped = 0
         fsync_last = 0
@@ -572,15 +573,23 @@ class BmapCopy(object):
             assert len(buf) <= (end - start + 1) * self.block_size
             assert len(buf) > (end - start) * self.block_size
 
+            bytes_left_to_skip = 0
             if ((end+1)*self.block_size) <= skip:
                 #Skip writing whole batch
+                bytes_skipped = (end+1)*self.block_size
+                blocks_skipped = end
+                mapped_blocks_skipped += (end - start + 1)
                 continue
             else:
                 if start*self.block_size <= skip:
-                    left_to_skip = skip - start*self.block_size
-                    buf = buf[left_to_skip:]
-                    bytes_skipped += left_to_skip + start*self.block_size
+                    #Skipping ends somewhere between start and end, possibly mid block.
+                    bytes_left_to_skip = skip - start*self.block_size
+                    buf = buf[bytes_left_to_skip:]
+                    bytes_skipped = start*self.block_size + bytes_left_to_skip
+                    blocks_skipped = start + int(bytes_left_to_skip / self.block_size)
+                    mapped_blocks_skipped += int(bytes_left_to_skip / self.block_size)
                 else:
+                    #We are done skipping, write whole batch
                     self._f_dest.seek(start * self.block_size - skip)
 
             # Synchronize the destination file if we reached the watermark
@@ -596,7 +605,7 @@ class BmapCopy(object):
                             % (start, end, self._dest_path, err))
 
             self._batch_queue.task_done()
-            blocks_written += (end - start + 1)
+            blocks_written += (end - start + 1 - int(bytes_left_to_skip / self.block_size))
             bytes_written += len(buf)
             #self._update_progress(blocks_written)
 
@@ -606,11 +615,12 @@ class BmapCopy(object):
 
         # This is just a sanity check - we should have written exactly
         # 'mapped_cnt' blocks.
-        if blocks_written + (bytes_skipped / self.block_size) != self.mapped_cnt:
+        print(blocks_written + mapped_blocks_skipped, self.mapped_cnt)
+        if blocks_written + mapped_blocks_skipped != self.mapped_cnt:
             raise Error("wrote %u blocks from image '%s' to '%s', but should "
                         "have %u - bmap file '%s' does not belong to this "
                         "image"
-                        % (blocks_written, self._image_path, self._dest_path,
+                        % (blocks_written + mapped_blocks_skipped, self._image_path, self._dest_path,
                            self.mapped_cnt, self._bmap_path))
 
         if self._dest_is_regfile:
